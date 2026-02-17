@@ -24,3 +24,15 @@ GITHUB_TOKEN=ghp_exampletoken python create_and_commit_file.py \
 ```
 
 The `--repo`, `--path`, `--content`, and `--message` flags are required. Include `--branch` to target a specific branch; omit it to use the repository's default branch.
+
+## Using `merge_pr.py`
+The `merge_pr.py` helper script merges an open pull request using the GitHub REST API. Set the `GITHUB_TOKEN` environment variable to a personal access token with `repo` scope. Provide the target repository in `owner/name` form along with the pull request number, and optionally choose a merge strategy or supply a custom commit title and message.
+
+```bash
+GITHUB_TOKEN=ghp_exampletoken python merge_pr.py openai/example-repo 42 \
+  --merge-method squash \
+  --commit-title "Squash merge PR #42" \
+  --commit-message "Merge PR #42 via helper script"
+```
+
+Omit the optional flags to use the default merge commit. The script exits with a non-zero status if GitHub rejects the merge (for example, due to conflicts or branch protection).
