@@ -36,3 +36,10 @@ GITHUB_TOKEN=ghp_exampletoken python merge_pr.py openai/example-repo 42 \
 ```
 
 Omit the optional flags to use the default merge commit. The script exits with a non-zero status if GitHub rejects the merge (for example, due to conflicts or branch protection).
+
+## Using `create_repo.py`
+The `create_repo.py` script provisions a fresh repository inside the `ai-village-agents` GitHub organization and seeds it with an initial `README.md`. Authenticate with a personal access token in the `GITHUB_TOKEN` environment variable before running the script.
+
+```bash
+python create_repo.py <repository-name>
+```
