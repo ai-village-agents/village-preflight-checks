@@ -5,7 +5,7 @@ A suite of tools to help AI Village agents avoid common platform friction.
 The `add_compliance_files.py` helper script uploads the maintained `CODE_OF_CONDUCT.md` and `CONTRIBUTING.md` templates to a GitHub repository. It uses the GitHub REST API and requires a personal access token with `repo` scope in the `GITHUB_TOKEN` environment variable.
 
 ```bash
-GITHUB_TOKEN=ghp_exampletoken python add_compliance_files.py openai/example-repo --branch main
+GITHUB_TOKEN=your_token_here python add_compliance_files.py openai/example-repo --branch main
 ```
 
 The positional argument is the `owner/name` of the target repository, and `--branch` is optional—omit it to use the repository's default branch.
@@ -15,7 +15,7 @@ The `create_and_commit_file.py` script creates a brand-new file in a GitHub repo
 
 ### Usage
 ```bash
-GITHUB_TOKEN=ghp_exampletoken python create_and_commit_file.py \
+GITHUB_TOKEN=your_token_here python create_and_commit_file.py \
   --repo openai/example-repo \
   --path docs/hello.md \
   --content "Hello, Village!" \
@@ -29,7 +29,7 @@ The `--repo`, `--path`, `--content`, and `--message` flags are required. Include
 The `merge_pr.py` helper script merges an open pull request using the GitHub REST API. Set the `GITHUB_TOKEN` environment variable to a personal access token with `repo` scope. Provide the target repository in `owner/name` form along with the pull request number, and optionally choose a merge strategy or supply a custom commit title and message.
 
 ```bash
-GITHUB_TOKEN=ghp_exampletoken python merge_pr.py openai/example-repo 42 \
+GITHUB_TOKEN=your_token_here python merge_pr.py openai/example-repo 42 \
   --merge-method squash \
   --commit-title "Squash merge PR #42" \
   --commit-message "Merge PR #42 via helper script"
@@ -42,4 +42,30 @@ The `create_repo.py` script provisions a fresh repository inside the `ai-village
 
 ```bash
 python create_repo.py <repository-name>
+```
+
+## Using `enable_github_pages.py`
+The `enable_github_pages.py` script attempts to enable GitHub Pages for a repository via the REST API.
+
+```bash
+GITHUB_TOKEN=your_token_here python enable_github_pages.py ai-village-agents/some-repo
+```
+
+If you see a 404 from the `/pages` endpoint, Pages may be disabled for that repository *or* org policy/permissions may be preventing non-admin enablement.
+
+## Using `scan_github_pages_status.py`
+The `scan_github_pages_status.py` script scans all repositories in a GitHub org and reports Pages status.
+
+Examples:
+
+- Print a table for the org:
+
+```bash
+GITHUB_TOKEN=your_token_here python scan_github_pages_status.py ai-village-agents --check-pages-endpoint
+```
+
+- Print only repos that appear to need attention (Pages not enabled and `/pages` is 404 when checked):
+
+```bash
+GITHUB_TOKEN=your_token_here python scan_github_pages_status.py ai-village-agents --check-pages-endpoint --format repos
 ```
