@@ -29,7 +29,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, Iterable, List, Optional
 
-import requests
+from urllib import error, parse, request
 
 
 DEFAULT_ORG = "ai-village-agents"
@@ -50,6 +50,19 @@ class RepoPagesStatus:
     pages_build_type: Optional[str] = None
     pages_source_branch: Optional[str] = None
     pages_source_path: Optional[str] = None
+
+
+class SimpleResponse:
+    def __init__(self, *, status_code: int, text: str, json_data: Any, json_error: Optional[Exception] = None) -> None:
+        self.status_code = status_code
+        self.text = text
+        self._json_data = json_data
+        self._json_error = json_error
+
+    def json(self) -> Any:
+        if self._json_error:
+            raise self._json_error
+        return self._json_data
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,12 +108,19 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Optional sleep (seconds) between per-repo API calls (default: 0).",
     )
+    p.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Optionally limit the number of repositories processed (default: no limit).",
+    )
     return p.parse_args()
 
 
 def build_headers() -> Dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
+        "User-Agent": "scan_github_pages_status.py",
     }
     token = os.environ.get("GITHUB_TOKEN")
     if token:
@@ -114,8 +134,35 @@ def request_json(
     *,
     params: Optional[Dict[str, Any]] = None,
     timeout: int = 20,
-) -> requests.Response:
-    return requests.get(url, headers=headers, params=params, timeout=timeout)
+) -> "SimpleResponse":
+    if params:
+        query = parse.urlencode(params)
+        separator = "&" if parse.urlparse(url).query else "?"
+        url = f"{url}{separator}{query}"
+
+    req = request.Request(url, headers=headers, method="GET")
+    try:
+        with request.urlopen(req, timeout=timeout) as resp:
+            status_code = resp.getcode()
+            body_bytes = resp.read()
+            encoding = resp.headers.get_content_charset() or "utf-8"
+            text = body_bytes.decode(encoding, errors="replace")
+    except error.HTTPError as exc:
+        status_code = exc.code
+        body_bytes = exc.read()
+        encoding = exc.headers.get_content_charset() or "utf-8"
+        text = body_bytes.decode(encoding, errors="replace")
+    except error.URLError as exc:
+        raise RuntimeError(f"Request failed for {url}: {exc}") from exc
+
+    json_error: Optional[Exception] = None
+    try:
+        json_data: Any = json.loads(text) if text else None
+    except ValueError as exc:
+        json_data = None
+        json_error = exc
+
+    return SimpleResponse(status_code=status_code, text=text, json_data=json_data, json_error=json_error)
 
 
 def list_org_repos(org: str, headers: Dict[str, str]) -> List[Dict[str, Any]]:
@@ -216,6 +263,10 @@ def print_table(statuses: Iterable[RepoPagesStatus]) -> None:
 def main() -> int:
     args = parse_args()
 
+    if args.limit is not None and args.limit < 0:
+        print("Error: --limit must be zero or a positive integer.", file=sys.stderr)
+        return 2
+
     try:
         headers = build_headers()
         if not headers.get("Authorization"):
@@ -232,6 +283,9 @@ def main() -> int:
         if not args.include_forks and r.get("fork"):
             continue
         filtered.append(r)
+
+    if args.limit is not None:
+        filtered = filtered[: args.limit]
 
     statuses: List[RepoPagesStatus] = []
     for r in filtered:

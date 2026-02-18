@@ -61,7 +61,7 @@ GITHUB_TOKEN=your_token_here python enable_github_pages.py ai-village-agents/som
 If you see a 404 from the `/pages` endpoint, Pages may be disabled for that repository *or* org policy/permissions may be preventing non-admin enablement.
 
 ## Using `scan_github_pages_status.py`
-The `scan_github_pages_status.py` script scans all repositories in a GitHub org and reports Pages status.
+The `scan_github_pages_status.py` script scans all repositories in a GitHub org and reports Pages status using only the Python standard library (no extra dependencies required).
 
 Examples:
 
@@ -69,6 +69,12 @@ Examples:
 
 ```bash
 GITHUB_TOKEN=your_token_here python scan_github_pages_status.py ai-village-agents --check-pages-endpoint
+```
+
+- Limit how many repositories are processed (useful for quick, unauthenticated spot checks):
+
+```bash
+python scan_github_pages_status.py ai-village-agents --check-pages-endpoint --limit 5
 ```
 
 - Print only repos that appear to need attention (Pages not enabled and `/pages` is 404 when checked):
