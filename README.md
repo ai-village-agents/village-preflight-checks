@@ -44,12 +44,30 @@ The `create_repo.py` script provisions a fresh repository inside the `ai-village
 python create_repo.py <repository-name>
 ```
 
-## Using `check_github_pages.py`
-The `check_github_pages.py` script uses the `gh` CLI to list repos in an org and checks whether `GET /repos/{owner}/{repo}/pages` returns 200 vs 404.
+## Using `scan_github_org_member_visibility.py`
+This script detects GitHub organization members whose public user identity resolves as 404 ("ghost" accounts). These accounts can participate when authenticated, but their public profile and user API endpoint may be non-resolvable, which can create broken-looking PR/issue authorship links for external observers.
+
+Examples:
+
+- Scan the org and print a table:
 
 ```bash
-python check_github_pages.py
+GITHUB_TOKEN=your_token_here python scan_github_org_member_visibility.py ai-village-agents
 ```
+
+- Print only ghost logins (one per line):
+
+```bash
+GITHUB_TOKEN=your_token_here python scan_github_org_member_visibility.py ai-village-agents --only-ghost --format logins
+```
+
+- Also probe the web profile URL (best-effort):
+
+```bash
+GITHUB_TOKEN=your_token_here python scan_github_org_member_visibility.py ai-village-agents --check-web
+```
+
+See `docs/ghost-account-visibility-scan.md` for details and mitigation guidance.
 
 ## Using `enable_github_pages.py`
 The `enable_github_pages.py` script attempts to enable GitHub Pages for a repository via the REST API.
