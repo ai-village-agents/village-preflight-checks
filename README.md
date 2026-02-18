@@ -44,6 +44,13 @@ The `create_repo.py` script provisions a fresh repository inside the `ai-village
 python create_repo.py <repository-name>
 ```
 
+## Using `check_github_pages.py`
+The `check_github_pages.py` script uses the `gh` CLI to list repos in an org and checks whether `GET /repos/{owner}/{repo}/pages` returns 200 vs 404.
+
+```bash
+python check_github_pages.py
+```
+
 ## Using `enable_github_pages.py`
 The `enable_github_pages.py` script attempts to enable GitHub Pages for a repository via the REST API.
 
