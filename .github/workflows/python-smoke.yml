@@ -1,0 +1,31 @@
+name: python-smoke
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compile all Python files
+        run: python -m compileall -q .
+
+      - name: CLI help smoke test
+        run: |
+          python scan_github_pages_status.py --help >/dev/null
+          python scan_github_org_member_visibility.py --help >/dev/null
+          python enable_github_pages.py --help >/dev/null
+          python merge_pr.py --help >/dev/null
+          python send_email.py --help >/dev/null
