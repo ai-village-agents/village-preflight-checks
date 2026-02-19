@@ -2,8 +2,8 @@
 """Scan GitHub org repositories for GitHub Pages status.
 
 This is primarily useful for identifying repositories where Pages is not enabled.
-In AI Village, we've repeatedly observed an org-level/admin permissions bottleneck
-where non-admin users cannot enable Pages for certain repos.
+Repo admin access (not necessarily org admin) is typically sufficient to enable
+Pages; org policy can still block it.
 
 The script reports:
 - repo properties (archived/fork/default_branch)
@@ -44,12 +44,17 @@ class RepoPagesStatus:
     archived: bool
     fork: bool
     has_pages: bool
-
+    remediation: str = ""
     pages_endpoint_status: Optional[int] = None
     pages_html_url: Optional[str] = None
     pages_build_type: Optional[str] = None
     pages_source_branch: Optional[str] = None
     pages_source_path: Optional[str] = None
+    permissions_admin: Optional[bool] = None
+    permissions_push: Optional[bool] = None
+    permissions_pull: Optional[bool] = None
+    permissions_maintain: Optional[bool] = None
+    permissions_triage: Optional[bool] = None
 
 
 class SimpleResponse:
@@ -100,7 +105,7 @@ def parse_args() -> argparse.Namespace:
         "--format",
         choices=["table", "repos"],
         default="table",
-        help="Output format: 'table' (default) or 'repos' (just full_name lines needing attention).",
+        help="Output format: 'table' (default) or 'repos' (full_name + remediation for repos needing attention).",
     )
     p.add_argument(
         "--sleep",
@@ -202,6 +207,10 @@ def get_pages_endpoint(full_name: str, headers: Dict[str, str]) -> Dict[str, Any
     return out
 
 
+def _optional_bool(value: Any) -> Optional[bool]:
+    return value if isinstance(value, bool) else None
+
+
 def to_status(repo: Dict[str, Any], headers: Dict[str, str], *, check_pages: bool, sleep_s: float) -> RepoPagesStatus:
     full_name = repo.get("full_name") or ""
     status = RepoPagesStatus(
@@ -213,6 +222,14 @@ def to_status(repo: Dict[str, Any], headers: Dict[str, str], *, check_pages: boo
         has_pages=bool(repo.get("has_pages")),
     )
 
+    permissions = repo.get("permissions")
+    if isinstance(permissions, dict):
+        status.permissions_admin = _optional_bool(permissions.get("admin"))
+        status.permissions_push = _optional_bool(permissions.get("push"))
+        status.permissions_pull = _optional_bool(permissions.get("pull"))
+        status.permissions_maintain = _optional_bool(permissions.get("maintain"))
+        status.permissions_triage = _optional_bool(permissions.get("triage"))
+
     if check_pages and full_name:
         info = get_pages_endpoint(full_name, headers)
         status.pages_endpoint_status = info.get("status")
@@ -223,6 +240,31 @@ def to_status(repo: Dict[str, Any], headers: Dict[str, str], *, check_pages: boo
         if sleep_s:
             time.sleep(sleep_s)
 
+    # Remediation rules:
+    # - If pages_endpoint_status == 200 OR has_pages is True: "ok"
+    # - Else if pages_endpoint_status == 403: "blocked (403)..." with detail based on repo admin permission
+    # - Else if permissions_admin is True: self-remediable (repo admin can enable Pages)
+    # - Else if permissions_admin is False: needs-admin (no repo admin permission)
+    # - Else (permissions missing): unknown (no permissions data; set GITHUB_TOKEN)
+    remediation: str
+    pages_status = status.pages_endpoint_status
+    remediation = "unknown (no permissions data; set GITHUB_TOKEN)"
+
+    if pages_status == 200 or status.has_pages:
+        remediation = "ok"
+    elif pages_status == 403:
+        if status.permissions_admin is True:
+            remediation = "blocked (403) though repo admin; org policy?"
+        elif status.permissions_admin is False:
+            remediation = "blocked (403); needs-admin"
+        else:
+            remediation = "blocked (403); unknown perms"
+    elif status.permissions_admin is True:
+        remediation = "self-remediable (repo admin can enable Pages)"
+    elif status.permissions_admin is False:
+        remediation = "needs-admin (no repo admin permission)"
+
+    status.remediation = remediation
     return status
 
 
@@ -230,6 +272,8 @@ def print_table(statuses: Iterable[RepoPagesStatus]) -> None:
     rows: List[List[str]] = []
     header = [
         "repo",
+        "remediation",
+        "perm_admin",
         "has_pages",
         "pages_http",
         "archived",
@@ -243,6 +287,10 @@ def print_table(statuses: Iterable[RepoPagesStatus]) -> None:
         rows.append(
             [
                 s.full_name,
+                s.remediation,
+                ""
+                if s.permissions_admin is None
+                else ("yes" if s.permissions_admin else "no"),
                 "yes" if s.has_pages else "no",
                 "" if s.pages_endpoint_status is None else str(s.pages_endpoint_status),
                 "yes" if s.archived else "no",
@@ -307,13 +355,13 @@ def main() -> int:
         return 0
 
     # format == repos
-    # Print repos that appear to need attention: has_pages is false AND /pages is 404 (if checked)
     for s in statuses:
-        if s.has_pages:
-            continue
-        if args.check_pages_endpoint and s.pages_endpoint_status not in (None, 404):
-            continue
-        print(s.full_name)
+        pages_status = s.pages_endpoint_status
+        should_print = s.remediation != "ok" and (
+            pages_status in (None, 404, 403) or not s.has_pages
+        )
+        if should_print:
+            print(f"{s.full_name}\t{s.remediation}")
 
     return 0
 
